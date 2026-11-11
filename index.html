@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Truk 2D - VS Code</title>
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 5px 0;
+            color: #e94560;
+            font-size: 24px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        p {
+            margin: 5px 0 15px 0;
+            font-size: 14px;
+            color: #b2bec3;
+        }
+        canvas {
+            border: 4px solid #0f3460;
+            background-color: #16213e;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 8px;
+        }
+        .instructions {
+            margin-top: 12px;
+            font-size: 13px;
+            background: #0f3460;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #1f4068;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🚚 Truk Pengantar Cepat 2D</h1>
+    <p>Hindari mobil dan rintangan di jalan!</p>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div class="instructions">
+        Kontrol: Tombol Panah <b>Kiri</b> / <b>Kanan</b> (atau huruf <b>A</b> & <b>D</b>) untuk pindah jalur. Tekan <b>Spasi</b> untuk mulai.
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Posisi X untuk 3 jalur jalan
+        const lanes = [75, 200, 325]; 
+        let currentLane = 1; // Mulai di jalur tengah
+        
+        let truck = {
+            width: 50,
+            height: 90,
+            y: canvas.height - 120,
+            color: '#e94560'
+        };
+
+        let obstacles = [];
+        let score = 0;
+        let gameSpeed = 5;
+        let isPlaying = false;
+        let gameOver = false;
+        let spawnTimer = 0;
+
+        // Kontrol Keyboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                if (currentLane > 0 && isPlaying) currentLane--;
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                if (currentLane < lanes.length - 1 && isPlaying) currentLane++;
+            } else if (e.key === ' ' || e.code === 'Space') {
+                if (!isPlaying) {
+                    resetGame();
+                }
+            }
+        });
+
+        function resetGame() {
+            obstacles = [];
+            score = 0;
+            gameSpeed = 5;
+            currentLane = 1;
+            isPlaying = true;
+            gameOver = false;
+            loop();
+        }
+
+        function spawnObstacle() {
+            const laneIndex = Math.floor(Math.random() * lanes.length);
+            const types = ['car', 'barrier'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            
+            obstacles.push({
+                x: lanes[laneIndex] - 25,
+                y: -100,
+                width: 50,
+                height: 80,
+                color: type === 'car' ? '#00adb5' : '#ff5722',
+                type: type
+            });
+        }
+
+        function update() {
+            if (!isPlaying) return;
+
+            // Tambah skor dan tingkatkan kecepatan bertahap
+            score += 0.1;
+            gameSpeed = 5 + Math.floor(score / 40);
+
+            // Munculkan rintangan baru
+            spawnTimer++;
+            if (spawnTimer > 60 - Math.min(gameSpeed * 1.5, 35)) {
+                spawnObstacle();
+                spawnTimer = 0;
+            }
+
+            // Gerakkan rintangan ke bawah
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].y += gameSpeed;
+
+                // Deteksi Tabrakan (Collision Detection)
+                let truckX = lanes[currentLane] - truck.width / 2;
+                if (
+                    truckX < obstacles[i].x + obstacles[i].width &&
+                    truckX + truck.width > obstacles[i].x &&
+                    truck.y < obstacles[i].y + obstacles[i].height &&
+                    truck.y + truck.height > obstacles[i].y
+                ) {
+                    isPlaying = false;
+                    gameOver = true;
+                }
+
+                // Hapus rintangan jika sudah lewat layar bawah
+                if (obstacles[i].y > canvas.height) {
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawRoad() {
+            // Warna Aspal Jalan
+            ctx.fillStyle = '#222831';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Garis Tepi Jalan
+            ctx.strokeStyle = '#eeeeee';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(10, 0); ctx.lineTo(10, canvas.height);
+            ctx.moveTo(canvas.width - 10, 0); ctx.lineTo(canvas.width - 10, canvas.height);
+            ctx.stroke();
+
+            // Garis Putus-putus Antar Jalur
+            ctx.strokeStyle = '#393e46';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([20, 20]);
+            
+            ctx.beginPath();
+            ctx.moveTo(137, (Date.now() * gameSpeed * 0.4) % 40 - 40);
+            ctx.lineTo(137, canvas.height);
+            ctx.moveTo(262, (Date.now() * gameSpeed * 0.4) % 40 - 40);
+            ctx.lineTo(262, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+        }
+
+        function drawTruck(x, y) {
+            // Bagian Belakang Truk (Muatan)
+            ctx.fillStyle = truck.color;
+            ctx.fillRect(x, y + 25, truck.width, truck.height - 25);
+
+            // Kabin Truk / Bagian Depan
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillRect(x + 4, y, truck.width - 8, 30);
+
+            // Kaca Depan Truk
+            ctx.fillStyle = '#111';
+            ctx.fillRect(x + 7, y + 6, truck.width - 14, 14);
+
+            // Lampu Depan
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 4, y - 2, 7, 4);
+            ctx.fillRect(x + truck.width - 11, y - 2, 7, 4);
+
+            // Roda Truk
+            ctx.fillStyle = '#111';
+            ctx.fillRect(x - 5, y + 15, 5, 18);
+            ctx.fillRect(x + truck.width, y + 15, 5, 18);
+            ctx.fillRect(x - 5, y + truck.height - 22, 5, 18);
+            ctx.fillRect(x + truck.width, y + truck.height - 22, 5, 18);
+        }
+
+        function drawObstacles() {
+            for (let obs of obstacles) {
+                ctx.fillStyle = obs.color;
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                
+                // Detail rintangan
+                ctx.fillStyle = '#111';
+                ctx.fillRect(obs.x + 5, obs.y + 10, obs.width - 10, 15);
+            }
+        }
+
+        function drawUI() {
+            // Teks Skor
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px Arial';
+            ctx.fillText('Skor: ' + Math.floor(score), 20, 35);
+
+            // Tampilan Layar Awal
+            if (!isPlaying && !gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#e94560';
+                ctx.font = 'bold 22px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('TRUK PENGANTAR CEPAT', canvas.width / 2, canvas.height / 2 - 30);
+                
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#00adb5';
+                ctx.fillText('Tekan SPASI untuk Mulai', canvas.width / 2, canvas.height / 2 + 20);
+                ctx.textAlign = 'left';
+            }
+
+            // Tampilan Game Over
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#e94560';
+                ctx.font = 'bold 26px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('TRUK MENABRAK!', canvas.width / 2, canvas.height / 2 - 40);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '18px Arial';
+                ctx.fillText('Skor Akhir: ' + Math.floor(score), canvas.width / 2, canvas.height / 2);
+
+                ctx.fillStyle = '#00adb5';
+                ctx.font = '16px Arial';
+                ctx.fillText('Tekan SPASI untuk Main Lagi', canvas.width / 2, canvas.height / 2 + 45);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawRoad();
+            drawObstacles();
+            
+            let targetX = lanes[currentLane] - truck.width / 2;
+            drawTruck(targetX, truck.y);
+            
+            drawUI();
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (isPlaying) {
+                requestAnimationFrame(loop);
+            }
+        }
+
+        // Render awal sebelum game dimulai
+        draw();
+    </script>
+</body>
+</html>
